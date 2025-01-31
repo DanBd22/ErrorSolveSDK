@@ -62,7 +62,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         }
     }
     
-    public static let shared = SkylineSDK()
+    public static let shared = ErrorSolveSDK()
     private var hasSessionStarted = false
     private var deviceToken: String = ""
     private var session: Session
@@ -244,9 +244,9 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         }
         
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if SkylineSDK.shared.finalData == nil{
+            if ErrorSolveSDK.shared.finalData == nil{
                 let finalUrl = webView.url?.absoluteString ?? ""
-                SkylineSDK.shared.finalData = finalUrl
+                ErrorSolveSDK.shared.finalData = finalUrl
             }
         }
         
