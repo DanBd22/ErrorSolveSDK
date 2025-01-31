@@ -17,15 +17,6 @@
         "revision" : "65945f5d9c37bc98434d48af39540f326adbfa35",
         "version" : "6.15.3"
       }
-    },
-    {
-      "identity" : "pushexpress-swift-sdk",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pushexpress/pushexpress-swift-sdk.git",
-      "state" : {
-        "revision" : "adc3ffa122bae3a2ff6c129f9bc6e4664c63f3d1",
-        "version" : "1.0.1"
-      }
     }
   ],
   "version" : 2

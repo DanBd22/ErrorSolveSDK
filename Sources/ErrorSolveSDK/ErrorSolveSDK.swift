@@ -5,7 +5,6 @@ import Alamofire
 import SwiftUI
 import AppTrackingTransparency
 import AdSupport
-import SdkPushExpress
 import Combine
 import WebKit
 
@@ -104,7 +103,6 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         self.paramName = paramName
         self.mainWindow = window
 
-        try? PushExpressManager.shared.initialize(appId: pushExpressKey)
 
         AppsFlyerLib.shared().appsFlyerDevKey = appsFlyerKey
         AppsFlyerLib.shared().appleAppID = appID
@@ -119,12 +117,6 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         )
         
         completion(.success("Initialization completed successfully"))
-    }
-
-    public func registerForRemoteNotifications(deviceToken: Data) {
-        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        PushExpressManager.shared.transportToken = tokenString
-        self.deviceToken = tokenString
     }
 
     @objc private func handleSessionDidBecomeActive() {
@@ -142,9 +134,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
             .responseDecodable(of: ResponseData.self) { response in
                 switch response.result {
                 case .success(let decodedData):
-                    PushExpressManager.shared.tags["webmaster"] = decodedData.naming
                     self.statusFlag = decodedData.first_link
-                    try? PushExpressManager.shared.activate()
                     
                     if self.initialURL == nil {
                         self.initialURL = decodedData.link
@@ -169,7 +159,6 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
                     }
                     
                 case .failure:
-                    try? PushExpressManager.shared.activate()
                     completion(.failure(NSError(domain: "SkylineSDK", code: -1, userInfo: [NSLocalizedDescriptionKey: "Error occurred"])))
                 }
             }
