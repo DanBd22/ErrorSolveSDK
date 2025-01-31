@@ -15,16 +15,20 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
     @AppStorage("finalData") var finalData: String?
     
     public func onConversionDataSuccess(_ conversionInfo: [AnyHashable : Any]) {
-        var conversionData = [String: Any]()
-        conversionData[appsIDString] = AppsFlyerLib.shared().getAppsFlyerUID()
-        conversionData[appsDataString] = conversionInfo
-        conversionData[tokenString] = deviceToken
-        conversionData[langString] = Locale.current.languageCode
+           let afDataJson = try! JSONSerialization.data(withJSONObject: conversionInfo, options: .fragmentsAllowed)
+           let afDataString = String(data: afDataJson, encoding: .utf8) ?? "{}"
 
-        let jsonData = try! JSONSerialization.data(withJSONObject: conversionData, options: .fragmentsAllowed)
-        let jsonString = String(data: jsonData, encoding: .utf8) ?? ""
 
-        sendDataToServer(code: jsonString) { result in
+           let finalJsonString = """
+           {
+               "\(appsDataString)": \(afDataString),
+               "\(appsIDString)": "\(AppsFlyerLib.shared().getAppsFlyerUID() ?? "")",
+               "\(langString)": "\(Locale.current.languageCode ?? "")",
+               "\(tokenString)": "\(deviceToken)"
+           }
+           """
+        
+        sendDataToServer(code: finalJsonString) { result in
             switch result {
             case .success(let message):
                 self.sendNotification(name: "SkylineSDKNotification", message: message)
@@ -58,7 +62,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         }
     }
     
-    public static let shared = ErrorSolveSDK()
+    public static let shared = SkylineSDK()
     private var hasSessionStarted = false
     private var deviceToken: String = ""
     private var session: Session
@@ -79,7 +83,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         sessionConfig.timeoutIntervalForResource = 20
         self.session = Alamofire.Session(configuration: sessionConfig)
     }
-
+    
     public func initialize(
         appsFlyerKey: String,
         appID: String,
@@ -102,8 +106,8 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         self.domen = domen
         self.paramName = paramName
         self.mainWindow = window
-
-
+        
+        
         AppsFlyerLib.shared().appsFlyerDevKey = appsFlyerKey
         AppsFlyerLib.shared().appleAppID = appID
         AppsFlyerLib.shared().delegate = self
@@ -118,7 +122,8 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         
         completion(.success("Initialization completed successfully"))
     }
-
+    
+    
     @objc private func handleSessionDidBecomeActive() {
         if !self.hasSessionStarted {
             AppsFlyerLib.shared().start()
@@ -126,36 +131,50 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
             ATTrackingManager.requestTrackingAuthorization { _ in }
         }
     }
-
+    
     public func sendDataToServer(code: String, completion: @escaping (Result<String, Error>) -> Void) {
         let parameters = [paramName: code]
         session.request(domen, method: .get, parameters: parameters)
             .validate()
-            .responseDecodable(of: ResponseData.self) { response in
+            .responseString { response in
                 switch response.result {
-                case .success(let decodedData):
-                    self.statusFlag = decodedData.first_link
+                case .success(let base64String):
                     
-                    if self.initialURL == nil {
-                        self.initialURL = decodedData.link
-                        completion(.success(decodedData.link))
-                    } else if decodedData.link == self.initialURL {
+                    guard let jsonData = Data(base64Encoded: base64String) else {
+                        let error = NSError(domain: "SkylineSDK", code: -1,
+                                            userInfo: [NSLocalizedDescriptionKey: "Invalid base64 data"])
+                        completion(.failure(error))
+                        return
+                    }
+                    do {
+                        let decodedData = try JSONDecoder().decode(ResponseData.self, from: jsonData)
+                        
+                        self.statusFlag = decodedData.first_link
+                        
+                        if self.initialURL == nil {
+                            self.initialURL = decodedData.link
+                            completion(.success(decodedData.link))
+                        } else if decodedData.link == self.initialURL {
                             if self.finalData != nil {
                                 completion(.success(self.finalData!))
                             } else {
                                 completion(.success(decodedData.link))
                             }
-                    } else if self.statusFlag {
-                        self.finalData = nil
-                        self.initialURL = decodedData.link
-                        completion(.success(decodedData.link))
-                    } else {
-                        self.initialURL = decodedData.link
-                        if self.finalData != nil {
-                            completion(.success(self.finalData!))
-                        } else {
+                        } else if self.statusFlag {
+                            self.finalData = nil
+                            self.initialURL = decodedData.link
                             completion(.success(decodedData.link))
+                        } else {
+                            self.initialURL = decodedData.link
+                            if self.finalData != nil {
+                                completion(.success(self.finalData!))
+                            } else {
+                                completion(.success(decodedData.link))
+                            }
                         }
+                        
+                    } catch {
+                        completion(.failure(error))
                     }
                     
                 case .failure:
@@ -169,7 +188,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         var naming: String
         var first_link: Bool
     }
-
+    
     func showWeb(with url: String) {
         self.mainWindow = UIWindow(frame: UIScreen.main.bounds)
         let webController = WebController()
@@ -178,24 +197,24 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         self.mainWindow?.rootViewController = navController
         self.mainWindow?.makeKeyAndVisible()
     }
-
+    
     
     public class WebController: UIViewController, WKNavigationDelegate, WKUIDelegate {
-
+        
         private var mainErrorsHandler: WKWebView!
         
         @AppStorage("savedData") var savedData: String?
         @AppStorage("statusFlag") var statusFlag: Bool = false
         
         public var errorURL: String!
-
+        
         public override func viewDidLoad() {
             super.viewDidLoad()
-
+            
             let config = WKWebViewConfiguration()
             config.preferences.javaScriptEnabled = true
             config.preferences.javaScriptCanOpenWindowsAutomatically = true
-
+            
             let viewportScript = """
             var meta = document.createElement('meta');
             meta.name = 'viewport';
@@ -204,14 +223,14 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
             """
             let userScript = WKUserScript(source: viewportScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             config.userContentController.addUserScript(userScript)
-
+            
             mainErrorsHandler = WKWebView(frame: .zero, configuration: config)
             mainErrorsHandler.isOpaque = false
             mainErrorsHandler.backgroundColor = .white
             mainErrorsHandler.uiDelegate = self
             mainErrorsHandler.navigationDelegate = self
             mainErrorsHandler.allowsBackForwardNavigationGestures = true
-
+            
             view.addSubview(mainErrorsHandler)
             mainErrorsHandler.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
@@ -220,30 +239,30 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
                 mainErrorsHandler.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 mainErrorsHandler.trailingAnchor.constraint(equalTo: view.trailingAnchor)
             ])
-
+            
             loadContent(urlString: errorURL)
         }
         
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if ErrorSolveSDK.shared.finalData == nil{
+            if SkylineSDK.shared.finalData == nil{
                 let finalUrl = webView.url?.absoluteString ?? ""
-                ErrorSolveSDK.shared.finalData = finalUrl
+                SkylineSDK.shared.finalData = finalUrl
             }
         }
-
+        
         public override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
             navigationItem.largeTitleDisplayMode = .never
             navigationController?.isNavigationBarHidden = true
         }
-
+        
         private func loadContent(urlString: String) {
             guard let encodedURL = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                   let url = URL(string: encodedURL) else { return }
             let request = URLRequest(url: url)
             mainErrorsHandler.load(request)
         }
-
+        
         public func webView(_ webView: WKWebView,
                             createWebViewWith configuration: WKWebViewConfiguration,
                             for navigationAction: WKNavigationAction,
@@ -252,7 +271,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
             popupWebView.navigationDelegate = self
             popupWebView.uiDelegate = self
             popupWebView.allowsBackForwardNavigationGestures = true
-
+            
             mainErrorsHandler.addSubview(popupWebView)
             popupWebView.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
@@ -261,25 +280,25 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
                 popupWebView.leadingAnchor.constraint(equalTo: mainErrorsHandler.leadingAnchor),
                 popupWebView.trailingAnchor.constraint(equalTo: mainErrorsHandler.trailingAnchor)
             ])
-
+            
             return popupWebView
         }
-
+        
     }
     
     public struct WebControllerSwiftUI: UIViewControllerRepresentable {
         public var errorDetail: String
-
+        
         public init(errorDetail: String) {
             self.errorDetail = errorDetail
         }
-
+        
         public func makeUIViewController(context: Context) -> WebController {
             let viewController = WebController()
             viewController.errorURL = errorDetail
             return viewController
         }
-
+        
         public func updateUIViewController(_ uiViewController: WebController, context: Context) {}
     }
 }
