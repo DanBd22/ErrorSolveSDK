@@ -111,7 +111,7 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         AppsFlyerLib.shared().appsFlyerDevKey = appsFlyerKey
         AppsFlyerLib.shared().appleAppID = appID
         AppsFlyerLib.shared().delegate = self
-        AppsFlyerLib.shared().waitForATTUserAuthorization(timeoutInterval: 15)
+        AppsFlyerLib.shared().disableAdvertisingIdentifier = true
         
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if granted {
@@ -143,7 +143,6 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         if !self.hasSessionStarted {
             AppsFlyerLib.shared().start()
             self.hasSessionStarted = true
-            ATTrackingManager.requestTrackingAuthorization { _ in }
         }
     }
     
