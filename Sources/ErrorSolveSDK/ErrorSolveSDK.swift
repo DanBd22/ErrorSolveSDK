@@ -113,6 +113,16 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         AppsFlyerLib.shared().delegate = self
         AppsFlyerLib.shared().waitForATTUserAuthorization(timeoutInterval: 15)
         
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                DispatchQueue.main.async {
+                    application.registerForRemoteNotifications()
+                }
+            } else {
+                print("Notification permission denied.")
+            }
+        }
+        
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleSessionDidBecomeActive),
@@ -121,6 +131,11 @@ public class ErrorSolveSDK: NSObject, AppsFlyerLibDelegate {
         )
         
         completion(.success("Initialization completed successfully"))
+    }
+    
+    public func registerForRemoteNotifications(deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        self.deviceToken = tokenString
     }
     
     
